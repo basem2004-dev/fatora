@@ -234,17 +234,27 @@ class VoiceModelDownloadManager(context: Context) {
 
 private object VoiceModelFiles {
     private const val MODEL_DIRECTORY = "qwen3-asr"
+    private const val MIN_CONV_FRONTEND_BYTES = 40L * 1024 * 1024
+    private const val MIN_ENCODER_BYTES = 160L * 1024 * 1024
+    private const val MIN_DECODER_BYTES = 700L * 1024 * 1024
+    private const val MIN_VOCAB_BYTES = 2L * 1024 * 1024
+    private const val MIN_MERGES_BYTES = 1L * 1024 * 1024
 
     fun modelDirectory(context: Context): File =
         File(File(context.filesDir, "voice_models"), MODEL_DIRECTORY)
 
-    fun isInstalled(context: Context): Boolean {
-        val directory = modelDirectory(context)
-        return File(directory, "conv_frontend.onnx").isFile &&
-            File(directory, "encoder.int8.onnx").isFile &&
-            File(directory, "decoder.int8.onnx").isFile &&
-            File(directory, "tokenizer/vocab.json").isFile &&
-            File(directory, "tokenizer/merges.txt").isFile
+    fun isInstalled(context: Context): Boolean = hasCompleteFiles(modelDirectory(context))
+
+    fun hasCompleteFiles(directory: File): Boolean =
+        hasExpectedSize(directory, "conv_frontend.onnx", MIN_CONV_FRONTEND_BYTES) &&
+            hasExpectedSize(directory, "encoder.int8.onnx", MIN_ENCODER_BYTES) &&
+            hasExpectedSize(directory, "decoder.int8.onnx", MIN_DECODER_BYTES) &&
+            hasExpectedSize(directory, "tokenizer/vocab.json", MIN_VOCAB_BYTES) &&
+            hasExpectedSize(directory, "tokenizer/merges.txt", MIN_MERGES_BYTES)
+
+    private fun hasExpectedSize(directory: File, path: String, minimumBytes: Long): Boolean {
+        val file = File(directory, path)
+        return file.isFile && file.length() >= minimumBytes
     }
 }
 
@@ -287,7 +297,14 @@ class InstallVoiceModelWorker(context: Context, parameters: WorkerParameters) :
             downloadManager.remove(downloadId)
             Result.success()
         } catch (error: Exception) {
+            if (error is IncompleteVoiceModelException) {
+                // A successful DownloadManager status can still contain a truncated archive.
+                // Remove it so the next retry starts a fresh download instead of unpacking it again.
+                downloadManager.remove(downloadId)
+            }
             val reason = when (error) {
+                is IncompleteVoiceModelException ->
+                    "وصل نموذج الصوت ناقصًا. اضغط لإعادة تنزيله."
                 is IOException -> "تعذر قراءة ملفات النموذج. أعد تجهيزها من الإعدادات."
                 else -> "تعذر تجهيز نموذج الصوت. أعد المحاولة من الإعدادات."
             }
@@ -362,15 +379,8 @@ class InstallVoiceModelWorker(context: Context, parameters: WorkerParameters) :
     }
 
     private fun requireModelFiles(directory: File) {
-        val requiredFiles = listOf(
-            "conv_frontend.onnx",
-            "encoder.int8.onnx",
-            "decoder.int8.onnx",
-            "tokenizer/vocab.json",
-            "tokenizer/merges.txt",
-        )
-        if (requiredFiles.any { !File(directory, it).isFile }) {
-            throw IOException("Model archive is missing required files")
+        if (!VoiceModelFiles.hasCompleteFiles(directory)) {
+            throw IncompleteVoiceModelException("Model archive has missing or truncated files")
         }
     }
 
@@ -378,3 +388,5 @@ class InstallVoiceModelWorker(context: Context, parameters: WorkerParameters) :
         const val DOWNLOAD_ID = "voice_model_download_id"
     }
 }
+
+private class IncompleteVoiceModelException(message: String) : IOException(message)
