@@ -1,0 +1,25 @@
+name: sherpa_onnx
+description: Android-targeted local copy of the Sherpa ONNX Dart bindings.
+version: 2.0.2
+repository: https://github.com/k2-fsa/sherpa-onnx/tree/master/flutter
+issue_tracker: https://github.com/k2-fsa/sherpa-onnx/issues
+
+environment:
+  sdk: ">=3.2.0 <4.0.0"
+  flutter: ">=2.8.1"
+
+dependencies:
+  ffi: ^2.1.0
+  sherpa_onnx_android_arm64: 2.0.2
+  sherpa_onnx_android_armeabi: 2.0.2
+  sherpa_onnx_android_x86: 2.0.2
+  sherpa_onnx_android_x86_64: 2.0.2
+  sherpa_onnx_web: 2.0.2
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        default_package: sherpa_onnx_android_arm64
+      web:
+        default_package: sherpa_onnx_web
