@@ -135,7 +135,10 @@ class _VoiceCaptureScreenState extends State<VoiceCaptureScreen> {
       if (!mounted) return;
       setState(() {
         _listening = false;
-        _error = 'تعذر تحويل الصوت إلى نص. أعد المحاولة بعد التأكد من جاهزية النموذج.';
+        _error =
+            error.toString().contains('Failed to create offline recognizer')
+            ? 'ملفات نموذج الصوت غير مكتملة. افتح إعدادات التخزين وأعد تنزيل النموذج.'
+            : 'تعذر تحويل الصوت إلى نص. أعد المحاولة بعد التأكد من جاهزية النموذج.';
       });
     } finally {
       if (path != null) {
